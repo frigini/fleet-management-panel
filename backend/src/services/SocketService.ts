@@ -17,6 +17,9 @@ export class SocketService {
       }
     });
 
+    // Clear any stale users from previous server sessions
+    this.fleetData.clearAllUsers();
+
     this.setupSocketHandlers();
   }
 
@@ -24,7 +27,10 @@ export class SocketService {
     this.io.on('connection', (socket: Socket) => {
       console.log(`User connected: ${socket.id}`);
 
-      socket.on('user:join', (userData: { name: string }) => {
+      socket.on('user:join', async (userData: { name: string }) => {
+        // Remove any existing user with the same name to prevent duplicates
+        this.fleetData.removeUserByName(userData.name);
+
         const user: User = {
           id: uuidv4(),
           name: userData.name,
@@ -35,11 +41,22 @@ export class SocketService {
         this.fleetData.addUser(user);
         
         // Send initial data to the new user
-        socket.emit('fleet:initial', {
-          vehicles: this.fleetData.getAllVehicles(),
-          groups: this.fleetData.getVehicleGroups(),
-          auditHistory: this.fleetData.getAuditHistory(20)
-        });
+        try {
+          const [vehicles, groups, auditHistory] = await Promise.all([
+            this.fleetData.getAllVehicles(),
+            this.fleetData.getVehicleGroups(),
+            this.fleetData.getAuditHistory(20)
+          ]);
+
+          socket.emit('fleet:initial', {
+            vehicles,
+            groups,
+            auditHistory
+          });
+        } catch (error) {
+          console.error('Error loading initial data:', error);
+          socket.emit('error', { message: 'Failed to load initial data' });
+        }
 
         // Notify all clients about active users
         this.io.emit('users:update', this.fleetData.getActiveUsers());
@@ -47,27 +64,70 @@ export class SocketService {
         console.log(`User ${userData.name} joined with ID: ${user.id}`);
       });
 
-      socket.on('vehicle:update', (data: { vehicleId: string; updates: Partial<Vehicle>; userId: string; userName: string }) => {
+      socket.on('vehicle:update', async (data: { vehicleId: string; updates: Partial<Vehicle>; userId: string; userName: string }) => {
         const { vehicleId, updates, userId, userName } = data;
         
-        const updatedVehicle = this.fleetData.updateVehicle(vehicleId, updates, userId, userName);
-        
-        if (updatedVehicle) {
-          // Broadcast the update to all connected clients
-          this.io.emit('vehicle:updated', {
-            vehicle: updatedVehicle,
-            groups: this.fleetData.getVehicleGroups()
-          });
-
-          // Send updated audit history
-          this.io.emit('audit:update', this.fleetData.getAuditHistory(20));
+        try {
+          const updatedVehicle = await this.fleetData.updateVehicle(vehicleId, updates, userId, userName);
           
-          console.log(`Vehicle ${updatedVehicle.name} updated by ${userName}`);
+          if (updatedVehicle) {
+            const [groups, auditHistory] = await Promise.all([
+              this.fleetData.getVehicleGroups(),
+              this.fleetData.getAuditHistory(20)
+            ]);
+
+            // Broadcast the update to all connected clients
+            this.io.emit('vehicle:updated', {
+              vehicle: updatedVehicle,
+              groups
+            });
+
+            // Send updated audit history
+            this.io.emit('audit:update', auditHistory);
+            
+            console.log(`Vehicle ${updatedVehicle.name} updated by ${userName}`);
+          }
+        } catch (error) {
+          console.error('Error updating vehicle:', error);
+          socket.emit('error', { message: 'Failed to update vehicle' });
         }
       });
 
-      socket.on('audit:request', (limit: number = 50) => {
-        socket.emit('audit:history', this.fleetData.getAuditHistory(limit));
+      socket.on('vehicle:create', async (data: { vehicleData: Omit<Vehicle, 'id' | 'lastUpdated'>; userId: string; userName: string }) => {
+        const { vehicleData, userId, userName } = data;
+        
+        try {
+          const newVehicle = await this.fleetData.addVehicle(vehicleData, userId, userName);
+          
+          const [groups, auditHistory] = await Promise.all([
+            this.fleetData.getVehicleGroups(),
+            this.fleetData.getAuditHistory(20)
+          ]);
+
+          // Broadcast the new vehicle to all connected clients
+          this.io.emit('vehicle:created', {
+            vehicle: newVehicle,
+            groups
+          });
+
+          // Send updated audit history
+          this.io.emit('audit:update', auditHistory);
+          
+          console.log(`Vehicle ${newVehicle.name} created by ${userName}`);
+        } catch (error) {
+          console.error('Error creating vehicle:', error);
+          socket.emit('error', { message: 'Failed to create vehicle' });
+        }
+      });
+
+      socket.on('audit:request', async (limit: number = 50) => {
+        try {
+          const auditHistory = await this.fleetData.getAuditHistory(limit);
+          socket.emit('audit:history', auditHistory);
+        } catch (error) {
+          console.error('Error getting audit history:', error);
+          socket.emit('error', { message: 'Failed to load audit history' });
+        }
       });
 
       socket.on('disconnect', () => {

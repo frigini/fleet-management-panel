@@ -61,3 +61,43 @@ export interface User {
   socketId?: string;
   lastActive: Date;
 }
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  password: string;
+  resetToken?: string;
+  resetTokenExpiry?: Date;
+  createdAt: Date;
+  lastLogin?: Date;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  name: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  token: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordConfirm {
+  token: string;
+  newPassword: string;
+}

@@ -1,160 +1,131 @@
 import { Vehicle, VehicleGroup, VehicleType, VehicleStatus, AuditEntry, User } from '../types';
+import { DatabaseService } from '../services/DatabaseService';
 import { v4 as uuidv4 } from 'uuid';
 
 export class FleetDataStore {
-  private vehicles: Map<string, Vehicle> = new Map();
-  private auditHistory: AuditEntry[] = [];
+  private database: DatabaseService;
   private users: Map<string, User> = new Map();
 
-  constructor() {
-    this.initializeDefaultData();
+  getDatabase(): DatabaseService {
+    return this.database;
   }
 
-  private initializeDefaultData() {
-    const defaultVehicles: Omit<Vehicle, 'id' | 'lastUpdated'>[] = [
-      // PMO Empilhadeiras
-      { name: 'MVX003', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'PMO', updatedBy: 'system' },
-      { name: 'MVX006', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'PMO', updatedBy: 'system' },
-      
-      // Piquete Empilhadeiras
-      { name: 'EPM004', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Piquete', updatedBy: 'system' },
-      { name: 'EPM020', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Piquete', updatedBy: 'system' },
-      { name: 'EPM021', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.MANUTENCAO, location: 'Piquete', notes: 'EIXO QUEBRADO/SEM PREVISÃO', updatedBy: 'system' },
-      { name: 'EMP027', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.INDISPONIVEL, location: 'Piquete', updatedBy: 'system' },
-      { name: 'EMP028', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Piquete', updatedBy: 'system' },
-      
-      // Expedição Empilhadeiras
-      { name: 'EMP029', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.INDISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MNP003', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', notes: 'PREVENTIVA/CORRETIVA PROGRAMADA', updatedBy: 'system' },
-      { name: 'MNP002', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX001', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX002', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX004', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX005', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX007', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.INDISPONIVEL, location: 'Expedição', notes: 'EM FINALIZAÇÃO', updatedBy: 'system' },
-      { name: 'MVX008', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX009', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX011', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'MVX012', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      { name: 'EMP030', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.INDISPONIVEL, location: 'Expedição', notes: 'SEM PREVISÃO', updatedBy: 'system' },
-      { name: 'MVX010', type: VehicleType.EMPILHADEIRA, status: VehicleStatus.DISPONIVEL, location: 'Expedição', updatedBy: 'system' },
-      
-      // Tratores
-      { name: 'TRT001', type: VehicleType.TRATOR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'TRT002', type: VehicleType.TRATOR, status: VehicleStatus.INDISPONIVEL, location: 'Geral', notes: 'TRANCA DO CAPU, (AVALIANDO ADAPTAÇÃO)', updatedBy: 'system' },
-      { name: 'TRT003', type: VehicleType.TRATOR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'TRT004', type: VehicleType.TRATOR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'TRT005', type: VehicleType.TRATOR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      
-      // Krane-Car
-      { name: 'GDT001', type: VehicleType.KRANE_CAR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'GDT002', type: VehicleType.KRANE_CAR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'GDT003', type: VehicleType.KRANE_CAR, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      
-      // Caminhões
-      { name: 'GDT006', type: VehicleType.CAMINHAO, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'GDT007', type: VehicleType.CAMINHAO, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' },
-      { name: 'GDT009', type: VehicleType.CAMINHAO, status: VehicleStatus.DISPONIVEL, location: 'Geral', updatedBy: 'system' }
-    ];
+  constructor(dbPath?: string) {
+    this.database = new DatabaseService(dbPath);
+    this.seedDatabaseIfEmpty();
+  }
 
-    defaultVehicles.forEach(vehicleData => {
-      const vehicle: Vehicle = {
-        ...vehicleData,
-        id: uuidv4(),
-        lastUpdated: new Date()
+  private async seedDatabaseIfEmpty(): Promise<void> {
+    try {
+      const vehicleCount = await this.database.getVehicleCount();
+      if (vehicleCount === 0) {
+        console.log('🌱 Database is empty, seeding with default vehicles...');
+        await this.database.seedDefaultVehicles();
+      } else {
+        console.log(`📊 Database already contains ${vehicleCount} vehicles`);
+      }
+    } catch (error) {
+      console.error('Error seeding database:', error);
+    }
+  }
+
+  async getAllVehicles(): Promise<Vehicle[]> {
+    return await this.database.getAllVehicles();
+  }
+
+  async getVehicleById(id: string): Promise<Vehicle | null> {
+    return await this.database.getVehicleById(id);
+  }
+
+  async updateVehicle(id: string, updates: Partial<Vehicle>, userId: string, userName: string): Promise<Vehicle | null> {
+    try {
+      const vehicle = await this.database.getVehicleById(id);
+      if (!vehicle) return null;
+
+      const oldVehicle = { ...vehicle };
+      const updatedVehicle = {
+        ...vehicle,
+        ...updates,
+        lastUpdated: new Date(),
+        updatedBy: userName
       };
-      this.vehicles.set(vehicle.id, vehicle);
-    });
-  }
 
-  getAllVehicles(): Vehicle[] {
-    return Array.from(this.vehicles.values());
-  }
+      await this.database.updateVehicle(id, {
+        ...updates,
+        lastUpdated: updatedVehicle.lastUpdated,
+        updatedBy: userName
+      });
 
-  getVehicleById(id: string): Vehicle | undefined {
-    return this.vehicles.get(id);
-  }
-
-  updateVehicle(id: string, updates: Partial<Vehicle>, userId: string, userName: string): Vehicle | null {
-    const vehicle = this.vehicles.get(id);
-    if (!vehicle) return null;
-
-    const oldVehicle = { ...vehicle };
-    const updatedVehicle = {
-      ...vehicle,
-      ...updates,
-      lastUpdated: new Date(),
-      updatedBy: userName
-    };
-
-    this.vehicles.set(id, updatedVehicle);
-
-    // Create audit entries for changes
-    Object.keys(updates).forEach(key => {
-      const field = key as keyof Vehicle;
-      if (oldVehicle[field] !== updatedVehicle[field]) {
-        this.addAuditEntry({
-          vehicleId: id,
-          vehicleName: vehicle.name,
-          action: field === 'status' ? 'STATUS_CHANGE' : field === 'notes' ? 'NOTES_UPDATE' : 'LOCATION_CHANGE',
-          field,
-          oldValue: String(oldVehicle[field] || ''),
-          newValue: String(updatedVehicle[field] || ''),
-          userId,
-          userName
-        });
-      }
-    });
-
-    return updatedVehicle;
-  }
-
-  getVehicleGroups(): VehicleGroup[] {
-    const vehicles = this.getAllVehicles();
-    const groups: { [key: string]: VehicleGroup } = {};
-
-    vehicles.forEach(vehicle => {
-      const groupKey = `${vehicle.type}_${vehicle.location}`;
-      
-      if (!groups[groupKey]) {
-        groups[groupKey] = {
-          id: groupKey,
-          name: vehicle.location,
-          type: vehicle.type,
-          vehicles: [],
-          availableCount: 0,
-          totalCount: 0
-        };
+      // Create audit entries for changes
+      for (const key of Object.keys(updates)) {
+        const field = key as keyof Vehicle;
+        if (oldVehicle[field] !== updatedVehicle[field]) {
+          await this.addAuditEntry({
+            vehicleId: id,
+            vehicleName: vehicle.name,
+            action: field === 'status' ? 'STATUS_CHANGE' : field === 'notes' ? 'NOTES_UPDATE' : 'LOCATION_CHANGE',
+            field,
+            oldValue: String(oldVehicle[field] || ''),
+            newValue: String(updatedVehicle[field] || ''),
+            userId,
+            userName
+          });
+        }
       }
 
-      groups[groupKey].vehicles.push(vehicle);
-      groups[groupKey].totalCount++;
-      
-      if (vehicle.status === VehicleStatus.DISPONIVEL) {
-        groups[groupKey].availableCount++;
-      }
-    });
-
-    return Object.values(groups);
+      return updatedVehicle;
+    } catch (error) {
+      console.error('Error updating vehicle:', error);
+      return null;
+    }
   }
 
-  addAuditEntry(entry: Omit<AuditEntry, 'id' | 'timestamp'>) {
+  async getVehicleGroups(): Promise<VehicleGroup[]> {
+    try {
+      const vehicles = await this.getAllVehicles();
+      const groups: { [key: string]: VehicleGroup } = {};
+
+      vehicles.forEach(vehicle => {
+        const groupKey = `${vehicle.type}_${vehicle.location}`;
+        
+        if (!groups[groupKey]) {
+          groups[groupKey] = {
+            id: groupKey,
+            name: vehicle.location,
+            type: vehicle.type,
+            vehicles: [],
+            availableCount: 0,
+            totalCount: 0
+          };
+        }
+
+        groups[groupKey].vehicles.push(vehicle);
+        groups[groupKey].totalCount++;
+        
+        if (vehicle.status === VehicleStatus.DISPONIVEL) {
+          groups[groupKey].availableCount++;
+        }
+      });
+
+      return Object.values(groups);
+    } catch (error) {
+      console.error('Error getting vehicle groups:', error);
+      return [];
+    }
+  }
+
+  async addAuditEntry(entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<void> {
     const auditEntry: AuditEntry = {
       ...entry,
       id: uuidv4(),
       timestamp: new Date()
     };
     
-    this.auditHistory.unshift(auditEntry);
-    
-    // Keep only last 1000 entries
-    if (this.auditHistory.length > 1000) {
-      this.auditHistory = this.auditHistory.slice(0, 1000);
-    }
+    await this.database.insertAuditEntry(auditEntry);
   }
 
-  getAuditHistory(limit: number = 50): AuditEntry[] {
-    return this.auditHistory.slice(0, limit);
+  async getAuditHistory(limit: number = 50): Promise<AuditEntry[]> {
+    return await this.database.getAuditHistory(limit);
   }
 
   addUser(user: User) {
@@ -165,7 +136,47 @@ export class FleetDataStore {
     this.users.delete(userId);
   }
 
+  removeUserByName(userName: string) {
+    const users = Array.from(this.users.entries());
+    const userToRemove = users.find(([id, user]) => user.name === userName);
+    if (userToRemove) {
+      this.users.delete(userToRemove[0]);
+    }
+  }
+
+  clearAllUsers() {
+    this.users.clear();
+  }
+
   getActiveUsers(): User[] {
     return Array.from(this.users.values());
+  }
+
+  async addVehicle(vehicleData: Omit<Vehicle, 'id' | 'lastUpdated'>, userId: string, userName: string): Promise<Vehicle> {
+    const vehicle: Vehicle = {
+      ...vehicleData,
+      id: uuidv4(),
+      lastUpdated: new Date()
+    };
+
+    await this.database.insertVehicle(vehicle);
+
+    // Create audit entry for vehicle creation
+    await this.addAuditEntry({
+      vehicleId: vehicle.id,
+      vehicleName: vehicle.name,
+      action: 'CREATED',
+      field: 'status',
+      oldValue: '',
+      newValue: vehicle.status,
+      userId,
+      userName
+    });
+
+    return vehicle;
+  }
+
+  async close(): Promise<void> {
+    await this.database.close();
   }
 }

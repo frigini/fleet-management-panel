@@ -9,6 +9,7 @@ interface UseSocketReturn {
   activeUsers: User[];
   joinAsUser: (userName: string) => void;
   updateVehicle: (vehicleId: string, updates: Partial<Vehicle>) => void;
+  createVehicle: (vehicleData: Omit<Vehicle, 'id' | 'lastUpdated'>) => void;
   requestAuditHistory: (limit?: number) => void;
 }
 
@@ -92,6 +93,19 @@ export const useSocket = (): UseSocketReturn => {
       }));
     });
 
+    newSocket.on('vehicle:created', (data: { vehicle: Vehicle; groups: VehicleGroup[] }) => {
+      const processedVehicle = {
+        ...data.vehicle,
+        lastUpdated: new Date(data.vehicle.lastUpdated)
+      };
+
+      setFleetData(prev => ({
+        ...prev,
+        vehicles: [...prev.vehicles, processedVehicle],
+        groups: data.groups
+      }));
+    });
+
     newSocket.on('users:update', (users: User[]) => {
       const processedUsers = users.map(user => ({
         ...user,
@@ -124,6 +138,16 @@ export const useSocket = (): UseSocketReturn => {
     }
   }, [socket, currentUser]);
 
+  const createVehicle = useCallback((vehicleData: Omit<Vehicle, 'id' | 'lastUpdated'>) => {
+    if (socket && currentUser) {
+      socket.emit('vehicle:create', {
+        vehicleData,
+        userId: currentUser.id,
+        userName: currentUser.name
+      });
+    }
+  }, [socket, currentUser]);
+
   const requestAuditHistory = useCallback((limit: number = 50) => {
     if (socket) {
       socket.emit('audit:request', limit);
@@ -137,6 +161,7 @@ export const useSocket = (): UseSocketReturn => {
     activeUsers,
     joinAsUser,
     updateVehicle,
+    createVehicle,
     requestAuditHistory
   };
 };

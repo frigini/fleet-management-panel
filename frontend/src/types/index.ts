@@ -59,3 +59,34 @@ export interface FleetData {
   groups: VehicleGroup[];
   auditHistory: AuditEntry[];
 }
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  name: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  token: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordConfirm {
+  token: string;
+  newPassword: string;
+}
